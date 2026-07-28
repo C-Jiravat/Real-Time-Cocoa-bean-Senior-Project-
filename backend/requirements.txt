@@ -1,0 +1,3 @@
+# Canonical CPU/backend dependency entry point.
+# From the repository root: python -m pip install -r backend/requirements.txt
+-e .

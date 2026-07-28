@@ -1,0 +1,3 @@
+# Optional model-runtime dependencies for local PTH and ONNX development.
+# GPU validation is a separate GTX 1080 Ti gate; do not infer GPU support from this install.
+-e .[ml]

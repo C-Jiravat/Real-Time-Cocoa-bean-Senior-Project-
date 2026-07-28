@@ -1,0 +1,2 @@
+# Test and lint tooling for the backend.
+-e .[dev]
