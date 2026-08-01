@@ -4,6 +4,12 @@
 
 > Repository นี้ไม่เก็บ model weights, datasets, credential, virtual environment หรือผลลัพธ์ที่สร้างขึ้นจากการรันระบบ
 
+## ตัวอย่างหน้าจอ
+
+![หน้าเว็บ Cocoa Bean AI Platform](assets/demo-main.png)
+
+หน้าเว็บแสดงผลการตรวจจับเมล็ด การจำแนกสี/ข้อบกพร่อง ผลประเมินคุณภาพ และเวลาประมวลผลในหน้าเดียว
+
 ## Features
 
 - Login สำหรับผู้ดูแลระบบ
