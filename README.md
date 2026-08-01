@@ -2,7 +2,6 @@
 
 เว็บแอปพลิเคชันสำหรับตรวจสอบคุณภาพเมล็ดโกโก้ด้วย AI โดยใช้ YOLO ตรวจจับเมล็ด แล้วส่งภาพ crop เข้า ConvNeXt ONNX เพื่อจำแนกสีและข้อบกพร่อง
 
-> Repository นี้ไม่เก็บ model weights, datasets, credential, virtual environment หรือผลลัพธ์ที่สร้างขึ้นจากการรันระบบ
 
 ## ตัวอย่างหน้าจอ
 
