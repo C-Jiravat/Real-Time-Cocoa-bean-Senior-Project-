@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "classifier_batch_size": 40,
+  "detector": {
+    "format": "onnx",
+    "path": "D:/Chula/Senior_Project/weight/weight_yolo/yolo11n_best.onnx",
+    "class_names": {"0": "cocoa_bean"}
+  },
+  "color_classifier": {
+    "format": "onnx",
+    "path": "weight/weight_color/Phase_d03_best.onnx",
+    "input_size": 224,
+    "class_names": {"0": "purple", "1": "brown"}
+  },
+  "defect_classifier": {
+    "format": "onnx",
+    "path": "weight/weight_defect/Phase3_WD0.15_best.onnx",
+    "input_size": 224,
+    "class_names": {
+      "0": "normal",
+      "1": "germinate",
+      "2": "slaty_hard_as_rock",
+      "3": "moldy"
+    }
+  }
+}

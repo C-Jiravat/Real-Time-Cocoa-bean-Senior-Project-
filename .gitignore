@@ -15,6 +15,7 @@ __pycache__/
 .env.*
 !.env.example
 .local/
+docs/private/
 
 # JavaScript dependencies and build output
 node_modules/
@@ -68,6 +69,12 @@ frontend/dist/
 /*.pptx
 /*.docx
 /~$*
+
+# README screenshot assets may be committed deliberately.
+!assets/
+!assets/*.png
+!assets/*.jpg
+!assets/*.jpeg
 
 # OS, editor, logs, and local databases
 .DS_Store

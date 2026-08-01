@@ -1,110 +1,97 @@
-import React, { useState } from 'react';
-import ImageUpload from './components/ImageUpload';
-import ResultDisplay from './components/ResultDisplay';
-import { predictImage } from './api';
-import './index.css';
+import { useEffect, useRef, useState } from 'react'
+import { analyze, benchmark, currentUser, login, logout } from './api'
+import './index.css'
 
-function App() {
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [modelType, setModelType] = useState('hybrid'); // 'yolo' or 'hybrid'
-  const [error, setError] = useState(null);
+const THAI_COLOR = { purple: 'เมล็ดสีม่วง', brown: 'เมล็ดสีน้ำตาล' }
+const THAI_DEFECT = { normal: 'เมล็ดปกติ', germinate: 'เมล็ดงอก', slaty_hard_as_rock: 'เมล็ดสีเทาหินชนวน', moldy: 'เมล็ดขึ้นรา' }
+const SETTINGS = { confidence: '0.25', iou: '0.45', device: 'auto' }
+const LEGEND = [
+  ['purple', 'สีม่วง'], ['brown', 'สีน้ำตาล'], ['normal', 'ปกติ'],
+  ['germinate', 'งอก'], ['slaty_hard_as_rock', 'เทาหินชนวน'], ['moldy', 'ขึ้นรา'],
+]
 
-  const handleImageUpload = (uploadedFile) => {
-    setFile(uploadedFile);
-    setPreview(URL.createObjectURL(uploadedFile));
-    setResult(null);
-    setError(null);
-  };
+const percent = value => `${Number(value || 0).toFixed(1)}%`
+const seconds = value => `${(Number(value || 0) / 1000).toFixed(2)} วินาที`
+const imageData = value => `data:image/png;base64,${value}`
+const csv = value => `"${String(value ?? '').replaceAll('"', '""')}"`
+function download(name, content, type) { const url = URL.createObjectURL(new Blob([content], { type })); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url) }
 
-  const handlePredict = async () => {
-    if (!file) return;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await predictImage(file, modelType);
-      setResult(data);
-    } catch (err) {
-      setError('Failed to process image. Please try again.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="app-container">
-      <header className="app-header">
-        <h1>Cocoa Bean Analyzer</h1>
-        <p>AI-Powered Quality & Color Classification</p>
-      </header>
-
-      <main className="main-content">
-        <div className="control-panel glass-panel">
-          <h2>Configuration</h2>
-
-          <div className="model-selector">
-            <label>Select Model:</label>
-            <div className="radio-group">
-              <label className={`radio-label ${modelType === 'yolo' ? 'active' : ''}`}>
-                <input
-                  type="radio"
-                  value="yolo"
-                  checked={modelType === 'yolo'}
-                  onChange={(e) => setModelType(e.target.value)}
-                />
-                YOLOv11 Only
-              </label>
-              <label className={`radio-label ${modelType === 'hybrid' ? 'active' : ''}`}>
-                <input
-                  type="radio"
-                  value="hybrid"
-                  checked={modelType === 'hybrid'}
-                  onChange={(e) => setModelType(e.target.value)}
-                />
-                YOLOv11 + ConvNeXt
-              </label>
-            </div>
-          </div>
-
-          <div className="upload-section">
-            <ImageUpload onImageUpload={handleImageUpload} />
-          </div>
-
-          {file && (
-            <button
-              className="predict-button"
-              onClick={handlePredict}
-              disabled={loading}
-            >
-              {loading ? 'Analyzing...' : 'Analyze Bean'}
-            </button>
-          )}
-
-          {error && <div className="error-message">{error}</div>}
-        </div>
-
-        <div className="result-panel glass-panel">
-          {preview ? (
-            <ResultDisplay
-              imageSrc={preview}
-              detections={result?.detections}
-              summary={result?.summary || {}}
-              grade={result?.grade}
-              modelType={modelType}
-            />
-          ) : (
-            <div className="placeholder-text">
-              Upload an image to see results here.
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
-  );
+function Login({ onLogin }) {
+  const [email, setEmail] = useState('admin@chula.ac.th'); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
+  async function submit(event) { event.preventDefault(); setBusy(true); setError(''); try { await login(email, password); onLogin({ email }) } catch (failure) { setError(failure.message) } finally { setBusy(false) } }
+  return <main className="login-page"><form className="login-card" onSubmit={submit}><div className="brand-mark">◈</div><p className="eyebrow">COCOA BEAN AI</p><h1>เข้าสู่ระบบ</h1><p>ระบบตรวจสอบคุณภาพเมล็ดโกโก้ด้วย AI</p><label>อีเมล<input value={email} onChange={event => setEmail(event.target.value)} type="email" required /></label><label>รหัสผ่าน<input value={password} onChange={event => setPassword(event.target.value)} type="password" required /></label>{error && <p className="error">{error}</p>}<button className="primary" disabled={busy}>{busy ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}</button></form></main>
 }
 
-export default App;
+function Settings({ value, onChange }) {
+  return <div className="settings"><label>Confidence<input type="number" min="0" max="1" step="0.01" value={value.confidence} onChange={event => onChange({ ...value, confidence: event.target.value })} /></label><label>IoU<input type="number" min="0" max="1" step="0.01" value={value.iou} onChange={event => onChange({ ...value, iou: event.target.value })} /></label><label>Runtime<select value={value.device} onChange={event => onChange({ ...value, device: event.target.value })}><option value="auto">Auto</option><option value="cpu">CPU</option><option value="gpu">GPU</option></select></label></div>
+}
+
+function Camera({ onCapture }) {
+  const videoRef = useRef(null); const streamRef = useRef(null); const [active, setActive] = useState(false); const [devices, setDevices] = useState([]); const [selected, setSelected] = useState(''); const [error, setError] = useState('')
+  useEffect(() => () => streamRef.current?.getTracks().forEach(track => track.stop()), [])
+  async function open() {
+    if (!navigator.mediaDevices?.getUserMedia) { setError('Browser นี้ไม่รองรับกล้อง หรือหน้าเว็บไม่ได้เปิดผ่าน localhost / HTTPS'); return }
+    setError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: selected ? { exact: selected } : undefined, width: { ideal: 1080 }, height: { ideal: 720 } }, audio: false })
+      streamRef.current?.getTracks().forEach(track => track.stop())
+      streamRef.current = stream
+      videoRef.current.srcObject = stream
+      await videoRef.current.play()
+      setActive(true)
+      const found = (await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === 'videoinput')
+      setDevices(found)
+      if (!selected && found[0]) setSelected(found[0].deviceId)
+    } catch (failure) {
+      const detail = failure?.name === 'NotAllowedError' ? 'Browser ปฏิเสธสิทธิ์กล้อง: อนุญาต Camera ใน address bar แล้วลองใหม่' : failure?.name === 'NotFoundError' ? 'ไม่พบกล้อง Notebook หรือ USB camera' : `ไม่สามารถเปิดกล้องได้ (${failure?.name || 'unknown error'})`
+      setError(detail)
+    }
+  }
+  function capture() { const video = videoRef.current; if (!video?.videoWidth) return; const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext('2d').drawImage(video, 0, 0); canvas.toBlob(blob => { if (blob) onCapture(new File([blob], `capture-${Date.now()}.png`, { type: 'image/png' })) }, 'image/png'); streamRef.current?.getTracks().forEach(track => track.stop()); setActive(false) }
+  return <div className="camera"><div className="camera-actions"><select value={selected} onChange={event => setSelected(event.target.value)} disabled={!devices.length}><option value="">เลือกกล้องอัตโนมัติ</option>{devices.map((device, index) => <option value={device.deviceId} key={device.deviceId}>{device.label || `กล้อง ${index + 1}`}</option>)}</select><button type="button" className="secondary" onClick={open}>{active ? 'เปลี่ยนกล้อง' : 'เปิดกล้อง'}</button>{active && <button type="button" className="primary" onClick={capture}>จับภาพ</button>}</div><video className={active ? '' : 'camera-hidden'} ref={videoRef} autoPlay playsInline muted />{error && <p className="error">{error}</p>}</div>
+}
+
+function UploadPanel({ file, preview, elapsedMs, onFile, settings, onSettings, onAnalyze, busy, error }) {
+  return <section className="upload-card"><p className="eyebrow">IMAGE ANALYSIS</p><h1>วิเคราะห์เมล็ดโกโก้</h1><label className="drop-zone"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => event.target.files[0] && onFile(event.target.files[0])} /><strong>อัปโหลดภาพตัวอย่าง</strong><small>PNG, JPEG หรือ WebP · ครั้งละ 1 ภาพ</small></label>{preview && <section className="upload-preview"><img src={preview} alt="ภาพที่อัปโหลดก่อนวิเคราะห์" />{busy && <div className="processing-overlay"><span className="spinner" /><strong>กำลังประมวลผล {seconds(elapsedMs)}</strong><small>YOLO → Crop → ConvNeXt</small></div>}</section>}<p className="split-word">หรือ</p><Camera onCapture={onFile} />{file && <p className="selected-file">ไฟล์ที่เลือก: {file.name}</p>}<Settings value={settings} onChange={onSettings} /><button className="primary full" disabled={!file || busy} onClick={onAnalyze}>{busy ? `กำลังวิเคราะห์ ${seconds(elapsedMs)}` : 'เริ่มวิเคราะห์'}</button>{error && <p className="error">{error}</p>}</section>
+}
+
+function Legend() { return <div className="legend">{LEGEND.map(([key, label]) => <span key={key}><i className={`dot ${key}`} />{label}</span>)}</div> }
+function ImagePanel({ title, state, image }) { return <article className="image-panel"><div className="panel-title"><h2>{title}</h2><span className="success-dot">ประมวลผลเสร็จสิ้น</span></div><img src={imageData(image)} alt={title} /><small>{state}</small></article> }
+function SummaryCard({ title, children, tone }) { return <section className={`summary-card ${tone || ''}`}><h2>{title}</h2>{children}</section> }
+
+function AnalysisResult({ result, onReset }) {
+  const { summary, quality, crop_success: crop, runtime, timing, image } = result
+  const colorTotal = Object.values(summary.color).reduce((sum, value) => sum + value, 0); const defectTotal = Object.values(summary.defect).reduce((sum, value) => sum + value, 0)
+  function exportCsv() { const rows = [['ประเภทสี', 'confidence สี', 'ประเภทตำหนิ', 'confidence ตำหนิ', 'Crop สำเร็จ', 'Bounding box'], ...result.detections.map(bean => [THAI_COLOR[bean.color?.key], bean.color ? percent(bean.color.confidence * 100) : '', THAI_DEFECT[bean.defect?.key], bean.defect ? percent(bean.defect.confidence * 100) : '', bean.valid_crop ? 'ใช่' : 'ไม่', bean.bbox.join(',')]), [], ['ชั้นคุณภาพเมล็ด', quality.bean_quality || quality.status], ['คุณภาพด้านการหมัก', quality.fermentation_quality || quality.reason], ['เวลารวม (ms)', timing.total_ms], ['YOLO (ms)', timing.yolo_ms], ['Crop (ms)', timing.crop_ms], ['ConvNeXt (ms)', timing.convnext_ms]]; download('cocoa-analysis.csv', rows.map(row => row.map(csv).join(',')).join('\n'), 'text/csv;charset=utf-8') }
+  return <section className="analysis-dashboard"><div className="result-toolbar"><button className="secondary" onClick={onReset}>← วิเคราะห์ภาพใหม่</button><a className="secondary" href={imageData(image.color_annotated_base64)} download="cocoa-color.png">บันทึกภาพสี</a><a className="secondary" href={imageData(image.defect_annotated_base64)} download="cocoa-defect.png">บันทึกภาพตำหนิ</a><button className="primary" onClick={exportCsv}>ส่งออก CSV</button></div><Legend /><div className="image-grid"><ImagePanel title="วิเคราะห์สีเมล็ด" state={`${colorTotal} เมล็ดที่จำแนกสี`} image={image.color_annotated_base64} /><ImagePanel title="วิเคราะห์ตำหนิ" state={`${defectTotal} เมล็ดที่จำแนกตำหนิ`} image={image.defect_annotated_base64} /></div><div className="summary-grid"><SummaryCard title="◐ สรุปสีเมล็ด"><div className="total">{result.detections.length}<span> เมล็ดทั้งหมด</span></div><div className="two-stat"><Stat label="สีม่วง" value={summary.color.purple} total={colorTotal} tone="purple" /><Stat label="สีน้ำตาล" value={summary.color.brown} total={colorTotal} tone="brown" /></div></SummaryCard><SummaryCard title="◈ ผลการประเมิน" tone="grade-card"><div className="grade-value">{quality.bean_quality || 'ผลไม่สมบูรณ์'}</div><div className="grade-subtitle">คุณภาพด้านการหมัก: {quality.fermentation_quality || quality.reason}</div>{quality.percentages && <table className="grade-table"><thead><tr><th>เกณฑ์</th><th>ผลลัพธ์</th><th>สถานะ</th></tr></thead><tbody><GradeRow label="เมล็ดขึ้นรา" value={quality.percentages.moldy} /><GradeRow label="ม่วง/เทาหินชนวน" value={quality.percentages.purple_or_slaty} /><GradeRow label="เมล็ดงอก" value={quality.percentages.germinate} /></tbody></table>}</SummaryCard><SummaryCard title="⚠ สรุปตำหนิ"><div className="defect-list">{Object.entries(summary.defect).map(([key, value]) => <div key={key}><span><i className={`dot ${key}`} />{THAI_DEFECT[key]}</span><strong>{value}</strong><em>{percent((value / (defectTotal || 1)) * 100)}</em></div>)}</div></SummaryCard></div><StatusBar timing={timing} crop={crop} runtime={runtime} /></section>
+}
+function Stat({ label, value, total, tone }) { return <div className={tone}><span>{label}</span><strong>{value}</strong><em>{percent((value / (total || 1)) * 100)}</em></div> }
+function GradeRow({ label, value }) { return <tr><td>{label}</td><td>{percent(value)}</td><td><span className="pass-badge">ตรวจสอบแล้ว</span></td></tr> }
+function StatusBar({ timing, crop, runtime }) { return <footer className="status-bar"><div><span>◷ เวลาประมวลผลทั้งหมด</span><strong>{seconds(timing.total_ms)}</strong></div><p>YOLO {seconds(timing.yolo_ms)} · Crop {seconds(timing.crop_ms)} · ConvNeXt {seconds(timing.convnext_ms)}</p><p className="green">Crop Success {percent(crop.percent)}</p><p>{runtime.device_actual.toUpperCase()} · {runtime.execution_provider}</p></footer> }
+
+function AnalysisPage() {
+  const [file, setFile] = useState(null); const [preview, setPreview] = useState(''); const [settings, setSettings] = useState(SETTINGS); const [result, setResult] = useState(null); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [elapsedMs, setElapsedMs] = useState(0); const startedAt = useRef(null)
+  useEffect(() => { if (!busy) return undefined; const timer = window.setInterval(() => setElapsedMs(Date.now() - startedAt.current), 100); return () => window.clearInterval(timer) }, [busy])
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
+  function selectFile(nextFile) { if (preview) URL.revokeObjectURL(preview); setFile(nextFile); setPreview(URL.createObjectURL(nextFile)); setResult(null); setError(''); setElapsedMs(0) }
+  async function submit() { if (!file) return; startedAt.current = Date.now(); setElapsedMs(0); setBusy(true); setError(''); try { setResult(await analyze(file, settings)) } catch (failure) { setError(failure.message) } finally { setBusy(false) } }
+  function reset() { if (preview) URL.revokeObjectURL(preview); setFile(null); setPreview(''); setResult(null); setError(''); setElapsedMs(0) }
+  return result ? <AnalysisResult result={result} onReset={reset} /> : <UploadPanel file={file} preview={preview} elapsedMs={elapsedMs} onFile={selectFile} settings={settings} onSettings={setSettings} onAnalyze={submit} busy={busy} error={error} />
+}
+
+function Metric({ label, value, suffix }) { return <article className="metric"><span>{label}</span><strong>{typeof value === 'number' ? value.toFixed(3) : value}</strong>{suffix && <small>{suffix}</small>}</article> }
+function ConfusionMatrix({ data }) { if (!data) return null; return <section className="confusion-card"><div><p className="eyebrow">CONFUSION MATRIX</p><h2>{data.title}</h2><small>จำแนกถูกต้อง {percent(data.accuracy * 100)} จากคู่ Bounding Box ที่ match ได้ {data.evaluated} คู่</small></div><div className="matrix" style={{ gridTemplateColumns: `150px repeat(${data.labels.length}, minmax(80px,1fr))` }}><span className="matrix-corner">Actual ↓ / Predicted →</span>{data.labels.map(label => <span className="matrix-head" key={label}>{label}</span>)}{data.rows.flatMap(row => [<span className="matrix-row" key={`${row.actual}-label`}>{row.actual}</span>, ...row.values.map((value, index) => <strong className={`cell cell-${index}`} key={`${row.actual}-${index}`}>{value}</strong>)])}</div></section> }
+
+function BenchmarkPage() {
+  const [mode, setMode] = useState('single'); const [files, setFiles] = useState({ target: 'color' }); const [settings, setSettings] = useState(SETTINGS); const [result, setResult] = useState(null); const [busy, setBusy] = useState(false); const [error, setError] = useState('')
+  const ready = mode === 'single' ? files.image && (files.target === 'both' ? files.colorLabel && files.defectLabel : files.label) : files.archive
+  async function submit(event) { event.preventDefault(); setBusy(true); setError(''); try { setResult(await benchmark(mode, files, settings)) } catch (failure) { setError(failure.message) } finally { setBusy(false) } }
+  function exportCsv() { const rows = [['ภาพ', 'GT', 'Prediction', 'Matched', 'Crop success', 'Precision', 'Recall', 'F1'], ...result.images.map(row => [row.image, row.ground_truth_boxes, row.predicted_boxes, row.matched_boxes, row.crop_successful, row.precision, row.recall, row.f1])]; download('cocoa-benchmark.csv', rows.map(row => row.map(csv).join(',')).join('\n'), 'text/csv;charset=utf-8') }
+  const target = files.target || 'color'
+  return <section className="benchmark-page"><div className="benchmark-heading"><div><p className="eyebrow">MODEL EVALUATION</p><h1>ประเมิน Bounding Box และการจำแนกของโมเดล</h1></div>{result && <button className="primary" onClick={exportCsv}>ส่งออกผลลัพธ์ CSV</button>}</div><div className="benchmark-layout"><form className="benchmark-control" onSubmit={submit}><h2>แหล่งข้อมูลสำหรับประเมิน</h2><div className="mode-tabs"><button type="button" className={mode === 'single' ? 'active' : ''} onClick={() => { setMode('single'); setFiles({ target }); setResult(null) }}>ภาพ + TXT</button><button type="button" className={mode === 'zip' ? 'active' : ''} onClick={() => { setMode('zip'); setFiles({ target }); setResult(null) }}>Dataset ZIP</button></div><label>ประเภทการประเมิน<select value={target} onChange={event => { setFiles({ target: event.target.value }); setResult(null) }}><option value="color">จำแนกสี</option><option value="defect">จำแนกข้อบกพร่อง</option><option value="both">ทั้งสีและข้อบกพร่อง</option></select></label>{mode === 'single' ? <><label>ภาพทดสอบ<input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => setFiles({ ...files, image: event.target.files[0] })} /></label>{target === 'both' ? <><label>Ground Truth สี (color.txt)<input type="file" accept=".txt,text/plain" onChange={event => setFiles({ ...files, colorLabel: event.target.files[0] })} /></label><label>Ground Truth ข้อบกพร่อง (defect.txt)<input type="file" accept=".txt,text/plain" onChange={event => setFiles({ ...files, defectLabel: event.target.files[0] })} /></label></> : <label>Ground Truth ({target}.txt)<input type="file" accept=".txt,text/plain" onChange={event => setFiles({ ...files, label: event.target.files[0] })} /></label>}</> : <><label className="drop-zone compact"><input type="file" accept=".zip" onChange={event => setFiles({ ...files, archive: event.target.files[0] })} /><strong>ลากไฟล์ ZIP มาวางที่นี่</strong><small>{target === 'both' ? 'ต้องมี images/, labels/color/ และ labels/defect/' : 'ต้องมี images/ และ labels/'}</small></label><pre>{target === 'both' ? `dataset.zip\n├─ images/\n├─ labels/color/  (.txt)\n└─ labels/defect/ (.txt)` : `dataset.zip\n├─ images/  (.jpg, .png)\n└─ labels/  (.txt)`}</pre></>}<Settings value={settings} onChange={setSettings} /><button className="primary full" disabled={!ready || busy}>{busy ? 'กำลัง Benchmark...' : '▶ เริ่ม Benchmark'}</button>{error && <p className="error">{error}</p>}</form><section className="benchmark-output">{result ? <BenchmarkResult result={result} /> : <div className="empty-output"><span>▤</span><h2>ผลการ Benchmark จะแสดงที่นี่</h2><p>เลือกประเภทการประเมิน แล้วอัปโหลด Ground Truth เพื่อเริ่มเปรียบเทียบ</p></div>}</section></div></section>
+}
+
+function BenchmarkResult({ result }) { const { metrics, preview, timing } = result; return <><div className="metric-grid"><Metric label="Precision" value={metrics.precision} suffix={percent(metrics.precision * 100)} /><Metric label="Recall" value={metrics.recall} suffix={percent(metrics.recall * 100)} /><Metric label="F1-score" value={metrics.f1} suffix={percent(metrics.f1 * 100)} /><Metric label="mAP@50" value={metrics.map_50} /><Metric label="mAP@50–95" value={metrics.map_50_95} /></div>{result.validation_errors?.length > 0 && <div className="validation-warning">{result.validation_errors.map(item => <p key={item.file}>{item.file}: {item.reason}</p>)}</div>}{preview && <section className="comparison"><h2>ตัวอย่างการเปรียบเทียบ: {preview.image}</h2><div><figure><figcaption><i className="green-box" /> Predicted</figcaption><img src={imageData(preview.predicted_base64)} alt="Predicted boxes" /></figure><figure><figcaption><i className="blue-box" /> Ground Truth</figcaption><img src={imageData(preview.ground_truth_base64)} alt="Ground truth boxes" /></figure></div></section>}{Object.values(result.classification || {}).map(matrix => <ConfusionMatrix data={matrix} key={matrix.title} />)}<table className="benchmark-table"><thead><tr><th>ภาพ</th><th>GT</th><th>Pred</th><th>Matched</th><th>Crop</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead><tbody>{result.images.map(row => <tr key={row.image}><td>{row.image}</td><td>{row.ground_truth_boxes}</td><td>{row.predicted_boxes}</td><td>{row.matched_boxes}</td><td>{row.crop_successful}</td><td>{row.precision.toFixed(3)}</td><td>{row.recall.toFixed(3)}</td><td>{row.f1.toFixed(3)}</td></tr>)}</tbody></table><StatusBar timing={timing} crop={{ percent: metrics.crop_success_percent_of_ground_truth }} runtime={result.runtime || { device_actual: 'unknown', execution_provider: 'unknown' }} /></> }
+
+function AppShell({ user, onLogout }) { const [page, setPage] = useState('analysis'); async function signOut() { await logout(); onLogout() } return <div className="dark-app"><header className="topbar"><div className="brand"><span className="brand-mark">◈</span><div><strong>Cocoa Bean AI</strong><small>AI Quality Inspection</small></div></div><nav><button className={page === 'analysis' ? 'active' : ''} onClick={() => setPage('analysis')}>◉ วิเคราะห์ภาพ</button><button className={page === 'benchmark' ? 'active' : ''} onClick={() => setPage('benchmark')}>▤ Evaluation Model</button></nav><div className="top-actions"><span className="runtime-chip">● ONNX · Auto</span><button className="logout" onClick={signOut}>{user.email} · ออกจากระบบ</button></div></header><main>{page === 'analysis' ? <AnalysisPage /> : <BenchmarkPage />}</main></div> }
+export default function App() { const [user, setUser] = useState(undefined); useEffect(() => { currentUser().then(setUser) }, []); if (user === undefined) return <main className="loading-page">กำลังเปิดระบบ...</main>; return user ? <AppShell user={user} onLogout={() => setUser(null)} /> : <Login onLogin={setUser} /> }

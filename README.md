@@ -1,68 +1,110 @@
 # Cocoa Bean AI Platform
 
-This repository is being rebuilt as a local-first FastAPI and React/Vite platform for cocoa-bean analysis. The product supports independent PTH and ONNX workflows, image analysis, browser-camera capture, Model Lab, benchmarking, HTML reports, durable local history, and later Supabase synchronization. The source of truth is [the PRD](docs/PRD_Cocoa_Bean_AI_Platform_EN.md).
+เว็บแอปพลิเคชันสำหรับตรวจสอบคุณภาพเมล็ดโกโก้ด้วย AI โดยใช้ YOLO ตรวจจับเมล็ด แล้วส่งภาพ crop เข้า ConvNeXt ONNX เพื่อจำแนกสีและข้อบกพร่อง
 
-## Repository status
+> Repository นี้ไม่เก็บ model weights, datasets, credential, virtual environment หรือผลลัพธ์ที่สร้างขึ้นจากการรันระบบ
 
-SP-000 establishes the safe baseline only. `app/`, `backend/main.py`, and `backend/models.py` are legacy references, not the supported MVP backend: they contain import-time model loading and absolute Windows paths. New production code belongs under `backend/src/cocoa_platform/`; the canonical API and frontend modules will be added by their assigned tasks. Do not move, delete, or commit legacy weights, datasets, uploads, virtual environments, or generated reports.
+## Features
 
-See [the repository inventory](docs/REPOSITORY_INVENTORY.md) for what is present today and [the artifact manifest](docs/ARTIFACT_MANIFEST.md) for acquisition and checksum records.
+- Login สำหรับผู้ดูแลระบบ
+- วิเคราะห์ภาพที่อัปโหลด หรือรับภาพจากกล้อง Notebook / USB camera
+- แสดง Bounding Box พร้อม class และ confidence
+- จำแนกสี: ม่วง, น้ำตาล
+- จำแนกข้อบกพร่อง: ปกติ, งอก, สีเทาหินชนวน, ขึ้นรา
+- ประเมินชั้นคุณภาพเมล็ดและสรุปผลเป็น CSV
+- Benchmark ด้วยภาพ + YOLO label หรือ Dataset ZIP
+- แสดง Precision, Recall, F1-score, mAP และ Confusion Matrix
 
-## Bootstrap
+## Technology
 
-Windows PowerShell, from the repository root:
+- Frontend: React + Vite
+- Backend: FastAPI
+- Detection: YOLO ONNX
+- Classification: ConvNeXt ONNX Runtime
+- Image processing: OpenCV
 
-```powershell
-py -3.10 -m venv .venv
-.\.venv\Scripts\python -m pip install --upgrade pip
-.\.venv\Scripts\python -m pip install -r backend\requirements.txt
-Copy-Item .env.example .env
+## Project structure
+
+```text
+frontend/                    React user interface
+backend/src/cocoa_platform/  FastAPI, inference, benchmark, grading
+backend/config/              Model registry
+docs/                        Public project documentation
+assets/                      Optional screenshots for this README
 ```
 
-Verify the canonical package boundary before starting feature work:
+## Local setup
+
+### 1. Backend
+
+Create a Python environment and install dependencies:
 
 ```powershell
-.\.venv\Scripts\python -B -c "from pathlib import Path; import cocoa_platform; p=Path(cocoa_platform.__file__).resolve(); e=(Path.cwd()/'backend/src/cocoa_platform/__init__.py').resolve(); assert p == e, (p, e); print(p)"
+.\backend\.venv-win\Scripts\python.exe -m pip install -r backend\requirements.txt -r backend\requirements-ml.txt
 ```
 
-This smoke test only imports the inert package marker. It does not import a legacy
-module, load models, start an API, or validate inference behavior.
+Create `.env` from `.env.example` and configure the administrator credentials locally. Do not commit `.env`.
 
-Install the optional PTH/ONNX runtime only when working on the model tasks:
+Start the API:
 
 ```powershell
-.\.venv\Scripts\python -m pip install -r backend\requirements-ml.txt
+.\backend\.venv-win\Scripts\python.exe -m uvicorn cocoa_platform.api.app:app --app-dir backend/src --reload --port 8000
 ```
 
-For NVIDIA GTX 1080 Ti acceptance, use the GPU compatibility instructions produced by the runtime/hardware tasks. The baseline is CPU-oriented and does not claim CUDA validation.
-
-## Start commands
-
-The current React/Vite reference frontend can be built or started with:
+### 2. Frontend
 
 ```powershell
 Set-Location frontend
-npm.cmd ci
-npm.cmd run build
+npm.cmd install
 npm.cmd run dev
 ```
 
-No canonical API exists at the SP-000 baseline. A later assigned task will provide
-its supported start command. Until then, the legacy FastAPI prototype can be
-inspected only (it is expected to fail to import without its historical model files):
+Open `http://localhost:5173`.
 
-```powershell
-Set-Location backend
-..\.venv\Scripts\python -m uvicorn main:app --reload --port 8000
+## Model weights
+
+Weights are intentionally excluded from Git. Configure their paths in `backend/config/model_registry.json` and keep the following local structure:
+
+```text
+weight/
+├─ weight_yolo/
+│  └─ best.onnx
+├─ weight_color/
+│  ├─ Phase_d03_best.onnx
+│  └─ Phase_d03_best.onnx.data
+└─ weight_defect/
+   ├─ Phase3_WD0.15_best.onnx
+   └─ Phase3_WD0.15_best.onnx.data
 ```
 
-## Local data and retention
+The `.onnx.data` files are required for ONNX models exported with external data.
 
-Keep model files, datasets, uploaded images, and generated artifacts outside Git. Set `COCOA_DATA_ROOT`, `COCOA_MODEL_ROOT`, and `COCOA_ARTIFACT_ROOT` in `.env`. The final product retains datasets and result artifacts until the user explicitly deletes them; dataset edits create immutable versions. It must not persist original input or benchmark images to Supabase Storage.
+## Benchmark dataset format
 
-## Contribution boundaries
+For color-only or defect-only evaluation:
 
-- Follow the path ownership and integration gates in [the implementation backlog](docs/MULTI_AGENT_IMPLEMENTATION_TASKS.md).
-- Do not change frozen contracts locally; create a contract-change task instead.
-- PTH and ONNX benchmarks and GPU validation are independent runs. A GTX 1080 Ti result is valid only with recorded real-hardware evidence.
-- Dataset ZIP ingestion must contain `images/` and YOLO-format `labels/`, and must be validated before extraction.
+```text
+dataset.zip
+├─ images/
+└─ labels/
+```
+
+For combined color and defect evaluation:
+
+```text
+dataset.zip
+├─ images/
+├─ labels/color/
+└─ labels/defect/
+```
+
+Labels use YOLO format:
+
+```text
+class_id x_center y_center width height
+```
+
+
+## Security note
+
+Do not commit `.env`, access tokens, passwords, datasets, or model files. The detailed operational handoff document is intentionally ignored by Git.
